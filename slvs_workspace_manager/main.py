@@ -12,20 +12,18 @@ from settings import Settings
 class SlvsWorkspaceManagerApp:
     def __init__(self, projects_dir):
         self.projects_dir = projects_dir
-        self.current_project = None
+        self.current_project = Path(projects_dir)
         self.exit = False
 
     @property
     def project_dir(self) -> Path:
-        return Path(f'{self.projects_dir}/{self.current_project.name}')
+        return self.current_project
 
     def run(self):
         while True:
             menu = ConsoleMenu('Workspace Manager', show_exit_option=False)
-            if self.current_project is None:
-                self.make_menu_projects(menu)
-            else:
-                self.make_menu_files(menu)
+            self.make_menu_projects(menu)
+            self.make_menu_files(menu)
 
             menu.show()
             if self.exit:
@@ -34,7 +32,7 @@ class SlvsWorkspaceManagerApp:
     def create_project(self):
         project_name = input('Enter project name: \n>')
         project_slug = slugify(project_name)
-        project_path = Path(self.projects_dir + '/' + project_slug)
+        project_path = self.current_project / project_slug
         project_path.mkdir(parents=True, exist_ok=True)
 
     def select_project(self, project):
@@ -47,12 +45,27 @@ class SlvsWorkspaceManagerApp:
         os.system(f'solvespace {file}')
         os.chdir(cwd)
 
+
+    @staticmethod
+    def _filter_project_dir(folder: Path):
+        if not folder.is_dir():
+            return False
+
+        if folder.name.startswith('.'):
+            return False
+
+        return True
+
+
     def scan_projects(self):
-        projects = [x for x in Path(self.projects_dir).iterdir() if x.is_dir()]
+        origin = self.current_project
+        projects = [x for x in origin.iterdir() if self._filter_project_dir(x)]
+
+        sorted_projects = sorted(projects, key=lambda x: x.name)
 
         project_items = []
-        for project in projects:
-            item = FunctionItem(project.name,
+        for project in sorted_projects:
+            item = FunctionItem(f'[ {project.name} ]',
                                 self.select_project,
                                 args=[project],
                                 should_exit=True)
@@ -64,8 +77,10 @@ class SlvsWorkspaceManagerApp:
         files = [x for x in self.project_dir.iterdir()
                  if x.is_file() and x.suffix == '.slvs']
 
+        sorted_files = sorted(files, key=lambda x: x.name)
+
         file_items = []
-        for file in files:
+        for file in sorted_files:
             item = FunctionItem(file.name,
                                 self.select_file,
                                 args=[file])
@@ -79,20 +94,21 @@ class SlvsWorkspaceManagerApp:
                                            should_exit=True)
         menu.append_item(create_project_item)
 
-        exit_item = FunctionItem('<<< Exit',
-                                 self.exit_app, should_exit=True)
-        menu.append_item(exit_item)
-
         project_items = self.scan_projects()
         for item in project_items:
             menu.append_item(item)
+
+        exit_item = FunctionItem('<<< Exit',
+                                 self.exit_app,
+                                 should_exit=True)
+        menu.append_item(exit_item)
 
         return menu
 
     def _create_file(self):
         file_name = input('Enter file name: \n>')
         file_slug = slugify(file_name)
-        file_path = self.project_dir / Path(f'{file_slug}.slvs')
+        file_path = self.current_project / Path(f'{file_slug}.slvs')
         empty_file_path = Path('assets/empty.slvs')
         copyfile(empty_file_path, file_path)
 
@@ -102,19 +118,19 @@ class SlvsWorkspaceManagerApp:
                                         should_exit=True)
         menu.append_item(create_file_item)
 
-        back_to_projects_item = FunctionItem('<< Back to projects',
-                                             self._back_to_projects,
-                                             should_exit=True)
-        menu.append_item(back_to_projects_item)
-
         files_items = self.scan_files()
         for item in files_items:
             menu.append_item(item)
 
+        back_to_projects_item = FunctionItem('<< Back',
+                                             self._back_to_projects,
+                                             should_exit=True)
+        menu.append_item(back_to_projects_item)
+
         return menu
 
     def _back_to_projects(self):
-        self.current_project = None
+        self.current_project = self.current_project.parent
 
     def exit_app(self):
         self.exit = True
