@@ -12,7 +12,7 @@ from settings import Settings
 class SlvsWorkspaceManagerApp:
     def __init__(self, projects_dir):
         self.projects_dir = projects_dir
-        self.current_project = Path(projects_dir)
+        self.current_project = Path(projects_dir).expanduser()
         self.exit = False
 
     @property
@@ -45,7 +45,6 @@ class SlvsWorkspaceManagerApp:
         os.system(f'solvespace {file}')
         os.chdir(cwd)
 
-
     @staticmethod
     def _filter_project_dir(folder: Path):
         if not folder.is_dir():
@@ -55,7 +54,6 @@ class SlvsWorkspaceManagerApp:
             return False
 
         return True
-
 
     def scan_projects(self):
         origin = self.current_project
